@@ -43,6 +43,7 @@ From the results, build a **source plan** — a list of every tool and recipe yo
 | Category | What to look for |
 |----------|-----------------|
 | Company profile & funding | Crunchbase, PitchBook, or similar company databases |
+| PitchBook data | Company profiles, funding rounds, valuations, comparables, investor networks — see PitchBook section below |
 | Public filings & financials | SEC EDGAR, financial data APIs |
 | People & contacts | Apollo, Clearbit, or people enrichment tools |
 | Corporate registry | OpenCorporates or jurisdiction-specific registries |
@@ -51,12 +52,29 @@ From the results, build a **source plan** — a list of every tool and recipe yo
 
 The specific tools will vary — use whatever is available. The recipes you know about today include Crunchbase (`rcp_7y7yozhEk_-Q`), but new ones may appear at any time.
 
+### PitchBook Data Collection
+
+PitchBook is a critical source for VC due diligence — it has the most comprehensive private company data including funding rounds, valuations, investor networks, comparable transactions, and board/management profiles. There is no direct PitchBook MCP integration yet, so use these approaches:
+
+1. **Web search with PitchBook domain**: Use `COMPOSIO_SEARCH_WEB` or `EXA_SEARCH` with `includeDomains: ["pitchbook.com"]` to find PitchBook company profiles, deal pages, and investor profiles. Query patterns:
+   - `"[company name] site:pitchbook.com"` — company profile
+   - `"[company name] funding pitchbook.com"` — funding history
+   - `"[company name] investors pitchbook.com"` — investor network
+   - `"[company name] valuation pitchbook.com"` — valuation data
+
+2. **Fetch PitchBook pages**: Use `COMPOSIO_SEARCH_FETCH_URL_CONTENT` or `EXA_GET_CONTENTS_ACTION` on any PitchBook URLs found. Note: some PitchBook pages are behind a paywall — if the content returns thin, note the gap and suggest the analyst check PitchBook directly.
+
+3. **PitchBook comparables**: Search for `"[sector/vertical] comparable transactions pitchbook.com"` to find relevant deal comps for valuation benchmarking.
+
+4. **If a PitchBook MCP or recipe becomes available**: Always check `RUBE_SEARCH_TOOLS` and `RUBE_FIND_RECIPE` for PitchBook integrations — they may be added at any time. If found, prefer the direct integration over web scraping.
+
 ## Step 3: Execute Data Collection
 
 Run as many sources **in parallel** as possible using `COMPOSIO_MULTI_EXECUTE_TOOL`. Group independent calls together. A typical full-diligence run hits 8-15 tools in 2-3 parallel batches.
 
 ### Batch 1 — Broad Discovery (all independent, run in parallel)
 - Company database search/lookup (Crunchbase or equivalent)
+- PitchBook search via web/Exa (company profile, funding rounds, investor network — see PitchBook section above)
 - Web search for "[company name] SEC EDGAR CIK Form D funding valuation" — this is critical for private companies where ticker lookups will fail. Extract the CIK from web results.
 - SEC EDGAR filing search using ticker (if public) — NOTE: for private companies, COMPOSIO_SEARCH_SEC_FILINGS will fail on the company name. You MUST resolve the CIK first via web search, then re-query with the 10-digit CIK in Batch 2.
 - Corporate registry search (OpenCorporates or equivalent)
