@@ -83,7 +83,37 @@ Other/Pitchbook/
 1. **Determine type** using the table above
 2. **Search for existing folder**: `sharepoint_folder_search(name="[Company]")`
 3. **If no folder exists**: find the highest number in Deal Flow, create next sequential `[###]_[Company]/` with `From Co/` and `From Triptyq/` subfolders
-4. **Upload or provide path** for the user to file manually
+4. **Upload via Rube** using the OneDrive API with SharePoint drive_id (see Upload section below)
+
+## Automated Upload via Rube.app
+
+The Composio SharePoint connector has a tenant configuration issue (`invalid_resource`). The working approach uses the **OneDrive** connector with the SharePoint `drive_id` parameter:
+
+**SharePoint Drive ID (Documents Triptyq library):**
+`b!wPs8sWIq70Kt7RsL80wFKBqB2HWWzZdAnhoakfwfYIWRgc_-ZgmSTLpthkkQlSJu`
+
+**Pipeline:**
+1. Build or obtain the file in the Rube sandbox
+2. Stage via `upload_local_file()` to get an `s3key`
+3. Upload via `ONE_DRIVE_ONEDRIVE_UPLOAD_FILE` with:
+   - `drive_id`: the SharePoint drive ID above
+   - `folder`: the target path (e.g., `/03_Occasions Invest/02_Deal Flow/110_Calder AI/From Triptyq`)
+   - `file`: `{ name, mimetype, s3key }`
+   - `conflict_behavior`: `"replace"` to overwrite existing
+
+**For PDF generation in the Rube sandbox:** Use `npm install puppeteer` + `pandoc` to convert docx → HTML → styled PDF with Triptyq branding.
+
+**Example:**
+```python
+res, err = upload_local_file("/home/user/memo.docx")
+s3key = res['s3key']
+result, error = run_composio_tool('ONE_DRIVE_ONEDRIVE_UPLOAD_FILE', {
+    'file': {'name': 'memo.docx', 'mimetype': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 's3key': s3key},
+    'folder': '/03_Occasions Invest/02_Deal Flow/110_Calder AI/From Triptyq',
+    'drive_id': 'b!wPs8sWIq70Kt7RsL80wFKBqB2HWWzZdAnhoakfwfYIWRgc_-ZgmSTLpthkkQlSJu',
+    'conflict_behavior': 'replace'
+})
+```
 
 ## Creating a New Deal Folder
 
