@@ -44,7 +44,7 @@ The thesis connection to entertainment, spatial computing, and AI must be explic
 
 ## Document Structure
 
-The memo should be 6-8 pages. Cover page + 7 sections. No more, no less. If you need more space, you're not distilling enough.
+The memo should be 6-8 pages. Cover page + 7 core sections. For complex deals (e.g., crowded markets, unusual competitive dynamics, or when third-party research independently validates the thesis), up to 3 optional sections may be added between Risks and Recommendation. If you're adding sections, apply the maple syrup test first — every section must earn its place.
 
 ### Cover Page
 - Triptyq logo (centered, from `assets/triptyq-logo-color.png` in this skill's directory)
@@ -75,6 +75,7 @@ The memo should be 6-8 pages. Cover page + 7 sections. No more, no less. If you 
 - Pull quote from an industry leader
 - Macro signal paragraph (recent raises, industry events, inflection points)
 - Market sizing table with sources cited below in small italic grey
+- Source names in the citation line must be **hyperlinked to the specific article** that contains the data — not the homepage. Verify the URL loads before inserting it. Never fabricate an article path.
 - "Decacorn Path" with 3 numbered reasons showing the math
 
 ### Section 5: Terms & Cap Table (1 page)
@@ -94,6 +95,34 @@ The memo should be 6-8 pages. Cover page + 7 sections. No more, no less. If you 
 - "Why Us" subsection — 2-3 sentences on access and relationship
 - Closing pull quote
 - Red rule + "END OF MEMO"
+
+### Optional Section A: Competition (insert between Risks and Recommendation)
+Use when the market is crowded or when a perceived competitor needs to be explicitly addressed.
+- Open with a pull quote that reframes the competitive narrative
+- 1-2 punchy setup paragraphs
+- 3-column competitor table: Competitor | What They Do | Why It's Not Us
+  - Red header row, alternating F5F5F5/WHITE rows
+  - Max 5 competitors. Column widths: ~2200, ~3680, ~3480 DXA
+  - Be honest about real threats. Distinguish perceived from actual.
+- Close with 1 paragraph on what the real moat is
+- Apply maple syrup test: if the Risks table already covers it, skip this section
+
+### Optional Section B: SWOT (insert after Competition or after Risks)
+Use when the investment decision is complex and IC needs a fast-scan framework.
+- Beautiful 2×2 table, full content width (9360 DXA), two equal columns (4680 each)
+- Header rows: STRENGTHS (RED `C8102E`), WEAKNESSES (dark `2D2D2D`), OPPORTUNITIES (near-black `1A1A1A`), THREATS (grey `666666`) — all white text
+- Body rows: alternating WHITE/F5F5F5 per quadrant
+- 4-5 Georgia bullet lines per quadrant (em-dash `—` prefix, 17pt, line 280)
+- No prose around the table. The table speaks.
+
+### Optional Section C: External Validation (insert after Recommendation)
+Use when a tier-1 research house independently reached the same conclusion as the memo.
+- Only include if the research was published BEFORE or independently of your memo — never post-hoc rationalization
+- Open with a pull quote stating the timeline clearly (e.g., "PitchBook published 4 months before we wrote this.")
+- Map the research findings directly to the company: what did they call, and how does it match?
+- A validation table works well: Research Finding | How Company Delivers It | Verdict (checkmark)
+- Close by stating why independent convergence matters for the investment decision
+- Include the source as a clickable hyperlink
 
 ## Design Specification
 
@@ -153,8 +182,9 @@ Read the docx skill before generating. Use `docx-js` (npm `docx`) to build the .
 - Repeat information across sections
 - Use three sentences where one will do
 - Write bio paragraphs that read like LinkedIn profiles
-- Add sections beyond the 7-section structure
+- Add optional sections without first applying the maple syrup test — they must earn their place
 - Use "widely regarded as" — let credentials speak
+- Fabricate source article URLs — verify every link loads before inserting it
 
 ### The Maple Syrup Test
 After drafting, read every paragraph and ask: "If I cut this, does the memo lose something essential?" If no, cut it. If yes, can you say it in fewer words?
@@ -169,11 +199,34 @@ After drafting, read every paragraph and ask: "If I cut this, does the memo lose
 
 ## After Writing
 
-1. Validate the .docx
-2. Convert to PDF for preview
+### New Memo
+1. Validate the .docx using `python scripts/office/validate.py`
+2. Convert to PDF: `soffice --headless --convert-to pdf doc.docx --outdir ./` (LibreOffice on Claude's local machine)
 3. Screenshot key pages and verify formatting
 4. Deliver both .docx and .pdf
-5. Save to SharePoint deal folder if access is available
+5. Save to SharePoint deal folder — use `ONE_DRIVE_ONEDRIVE_UPLOAD_FILE` via Rube with `conflict_behavior: "replace"`. The SharePoint Composio connector has a tenant config issue; always use the OneDrive connector with the SharePoint `drive_id` instead.
+
+### Editing an Existing Memo in SharePoint
+Use this workflow when adding sections, fixing content, or updating an existing memo file:
+
+1. **Download** via `ONE_DRIVE_DOWNLOAD_FILE` in Rube — returns an S3 URL. Use `requests.get(s3url)` in the Rube workbench to save to `/home/user/`.
+2. **Unpack** with `zipfile.ZipFile(...).extractall(...)` — a .docx is a ZIP of XML files.
+3. **Edit `word/document.xml`** directly with Python string operations. Critical rules:
+   - Always escape `&` as `&amp;` in text content (`re.sub(r'&(?!(amp|lt|gt|apos|quot|#\d+|#x[0-9a-fA-F]+);)', '&amp;', xml)`)
+   - Validate after every edit: `xml.etree.ElementTree.fromstring(doc_xml)`
+   - Use exact XML patterns from the original doc — read them first, never guess
+4. **Add hyperlinks**: edit both `word/document.xml` (add `<w:hyperlink r:id="rIdN">` elements) AND `word/_rels/document.xml.rels` (add `<Relationship Id="rIdN" Type=".../hyperlink" Target="URL" TargetMode="External"/>`)
+5. **Rels file warning**: When rebuilding `document.xml.rels`, always preserve the core non-hyperlink relationships (rId1–rId12: styles, header, footer, numbering, footnotes, endnotes, settings, comments, fontTable, customXml). Losing these breaks the document silently.
+6. **Repack** with `zipfile.ZipFile(..., 'w', ZIP_DEFLATED)` — zip all files from the unpacked directory.
+7. **Validate** in Claude's local environment: `python scripts/office/validate.py doc.docx`
+8. **Convert to PDF**: `soffice --headless --convert-to pdf doc.docx --outdir ./`
+9. **Upload back** via `ONE_DRIVE_ONEDRIVE_UPLOAD_FILE` with `conflict_behavior: "replace"`
+10. **Deliver** both .docx and .pdf to user
+
+### SharePoint Infrastructure
+- **Drive ID** (Documents Triptyq library): `b!wPs8sWIq70Kt7RsL80wFKBqB2HWWzZdAnhoakfwfYIWRgc_-ZgmSTLpthkkQlSJu`
+- **Memo folder**: `/03_Occasions Invest/02_Deal Flow/[###]_[Company]/From Triptyq/`
+- Use `conflict_behavior: "replace"` to overwrite existing files
 
 ## Reference Files
 
