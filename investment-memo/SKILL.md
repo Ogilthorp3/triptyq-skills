@@ -232,3 +232,57 @@ Use this workflow when adding sections, fixing content, or updating an existing 
 
 - `references/memo-template.md` — Quick-reference template with section patterns and example pull quotes
 - `assets/triptyq-logo-color.png` — Official Triptyq Capital logo (color, PNG, 8192x2057)
+
+
+## Addendum: Lessons from Calder Memo v2 (April 2026)
+
+The following guidelines were developed during the Calder Pte. Ltd. investment memo revision process (April 2026) based on feedback from Joe Tou and internal IC review.
+
+### New Standard Sections (Always Include)
+
+1. **Use of Proceeds & Milestones** — Table (Category | Est. Allocation | Purpose) + quarterly milestones with measurable targets + failure trigger. IC members will always ask how the money is spent.
+
+2. **Allocation & Return Sensitivity** — State Triptyq's allocation, post-money ownership %, return sensitivity table (Exit Valuation | Stake Value | Multiple | Scenario), dilution disclaimer, and strategic value beyond pure returns.
+
+3. **Customer Pipeline & Go-to-Market** — Required for pre-revenue companies. Prospect table + phased GTM plan + pricing model. **Must fit on ONE page** (maple syrup test). If no LOIs exist, state explicitly: "Prospects are based on market mapping, not confirmed contracts."
+
+4. **Exit Scenarios** — Table (Scenario | Rationale & Precedent | Timeline | Est. Value) covering Strategic Acquisition, Secondary/Growth Equity, and IPO paths. Name specific acquirers.
+
+### New Optional Section: Advisor/Conflict Deep Dive
+
+Use when an advisor has a dual role (customer + competitor). Structure:
+- Stack analysis table: Layer | Entity A | Entity B (prove they operate at different layers)
+- Vertical integration risk: Arguments unlikely (4+) + Arguments possible (3+)
+- Assessment with leading indicator and **recommended action** before IC vote
+- Created for Fei-Fei Li / World Labs analysis; resolved a partner's primary concern.
+
+### Tone Guidelines
+
+- **Analytical, not sales pitch.** If a sentence could come from a pitch deck, rewrite it.
+- **Don't cheerlead.** Let credentials and data speak.
+- **Don't create urgency.** The memo documents a decision, it doesn't pressure one.
+- **Acknowledge weaknesses directly.** E.g., "requires conviction in the team rather than the financials."
+- **Match verdict to body tone.** If the body is measured, the verdict should feel earned.
+
+### Personal Relationship: One Mention Rule
+
+The Bert/founder relationship is mentioned **once — in the "Our Edge" subsection of The Team only.** Never repeat in SWOT, Recommendation, Conclusion, or elsewhere. Repeating reads as a sales pitch. (This was the #1 feedback from Joe Tou's review.)
+
+### Hyperlinks on Technical Terms
+
+Every technical term in the memo should be a **clickable hyperlink** to a quality reference:
+- World models → NVIDIA Glossary or Scientific American explainer
+- SLAM → Wikipedia
+- LiDAR → Wikipedia
+- Framework/platform names → Official docs (PyTorch, ROS 2, NVIDIA Cosmos)
+- Open-source tools → GitHub repos (Open3D, etc.)
+
+Add a **Tech Stack subsection** under The Company with all components hyperlinked.
+
+### Reference Checks (Recommended)
+
+Best-in-class memos include 2-3 bullet points from backchannel calls on the founders. When the thesis rests on team conviction, this is the highest-ROI pre-IC activity.
+
+### Governance Flags
+
+If lead investor has veto power over subsequent investors (e.g., a16z >$5M threshold), flag this explicitly in Terms & Cap Table AND verbally at the partners meeting. It affects follow-on ability.
