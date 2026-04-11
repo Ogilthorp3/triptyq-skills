@@ -1,0 +1,6 @@
+{
+  "filename": "file-bridge-test.txt",
+  "sharepoint_folder": "/03_Occasions Invest/02_Deal Flow",
+  "encoding": "base64",
+  "conflict_behavior": "replace"
+}
