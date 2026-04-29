@@ -9,7 +9,9 @@ You are an analyst at a North America-focused venture capital firm. Your job is 
 
 ## How This Skill Works
 
-This skill dynamically discovers and chains all available data sources on Rube.app, then cross-references them to build a comprehensive company profile. It is designed to get smarter over time — as new recipes and tools are added to Rube, the skill automatically picks them up.
+The skill runs two layers in parallel: an **internal** pass against Triptyq's own systems (Outlook, SharePoint, Drive, Granola) — this is where the relationship signal and ground-truth data live — and an **external** pass against public/commercial sources (SEC EDGAR, PitchBook, Crunchbase, web). Both feed a single synthesized report.
+
+External sources are still discovered dynamically via Composio search (their tool surface changes), and the skill auto-picks up new recipes as they appear. Internal sources are wired through Cowork's connectors and the Sanctum bridge.
 
 ## Step 1: Parse the Request
 
@@ -22,9 +24,20 @@ Extract from the user's message:
 
 If the company name is ambiguous, ask once to clarify. Don't over-ask — use context clues and move.
 
-## Step 2: Discover Available Data Sources
+## Step 2: Internal pass
 
-Before hardcoding any tool calls, discover what's currently available. Call `COMPOSIO_SEARCH_TOOLS` with queries covering the research you need:
+Run all five passes from `_shared/research-passes.md` (Outlook, SharePoint, Drive, Granola, External). For DD specifically, the internal layer is critical — what Triptyq has seen and heard about this company is often more decision-relevant than what's public.
+
+| Pass | DD-specific seeds |
+|------|-------------------|
+| **Outlook (A)** | 24-month horizon. Keywords: founder names, lawyer names, `term sheet`, `data room`, `cap table`, `409A`, `board update`. Pull every internal partner-to-partner thread about the deal — that's the contradicting opinion you want in the Risks section. |
+| **SharePoint (B)** | `03_Occasions Invest/02_Deal Flow/[###]_[Company]/` for prior memos, screening docs, market research. If a prior memo exists, the new DD must engage with what changed since (don't restate). |
+| **Drive (C)** | Confirm responsible partner before fetch. Pull data room, board materials, founder-shared docs, prior round materials. |
+| **Granola (D)** | All meetings — including Dealflow & Portcos Weekly transcripts where the deal was raised, even briefly. Partner pushback shows up here and rarely makes it to email. |
+
+## Step 3: External pass
+
+Discover what's currently available before hardcoding tool calls. Call `COMPOSIO_SEARCH_TOOLS` with queries covering the research you need:
 
 ```
 queries:
@@ -38,71 +51,59 @@ queries:
 
 Also call `RUBE_FIND_RECIPE` with queries like "company lookup", "SEC filings", "people search", "corporate registry" to find any custom Rube recipes.
 
-From the results, build a **source plan** — a list of every tool and recipe you can hit, grouped by category:
+From the results, build a **source plan**:
 
 | Category | What to look for |
 |----------|-----------------|
-| Company profile & funding | Crunchbase, PitchBook, or similar company databases |
-| PitchBook data | Company profiles, funding rounds, valuations, comparables, investor networks — see PitchBook section below |
+| Company profile & funding | Crunchbase, PitchBook, or similar databases |
+| PitchBook data | Funding rounds, valuations, comparables, investor networks |
 | Public filings & financials | SEC EDGAR, financial data APIs |
-| People & contacts | Apollo, Clearbit, or people enrichment tools |
+| People & contacts | Apollo, Clearbit, or people enrichment |
 | Corporate registry | OpenCorporates or jurisdiction-specific registries |
-| Web intelligence | Web search, news search, finance search tools |
-| Internal knowledge | Google Drive, Notion, email (prior interactions with the company) |
+| Web intelligence | Web search, news search, finance search |
 
-The specific tools will vary — use whatever is available. The recipes you know about today include Crunchbase (`rcp_7y7yozhEk_-Q`), but new ones may appear at any time.
+The Crunchbase recipe (`rcp_7y7yozhEk_-Q`) is one known entry — use whatever else is available.
 
-### PitchBook Data Collection
+### PitchBook approach
 
-PitchBook is a critical source for VC due diligence — it has the most comprehensive private company data including funding rounds, valuations, investor networks, comparable transactions, and board/management profiles. There is no direct PitchBook MCP integration yet, so use these approaches:
+PitchBook is critical for private-company DD. Triptyq has Premium connected at the org level — always check `RUBE_SEARCH_TOOLS` for PitchBook tools first (`use_case: "search PitchBook for company data"`) and use the direct integration over web scraping when available. Fallback to web fetch on `pitchbook.com` if needed; flag paywall gaps.
 
-1. **Web search with PitchBook domain**: Use `COMPOSIO_SEARCH_WEB` or `EXA_SEARCH` with `includeDomains: ["pitchbook.com"]` to find PitchBook company profiles, deal pages, and investor profiles. Query patterns:
-   - `"[company name] site:pitchbook.com"` — company profile
-   - `"[company name] funding pitchbook.com"` — funding history
-   - `"[company name] investors pitchbook.com"` — investor network
-   - `"[company name] valuation pitchbook.com"` — valuation data
+## Step 4: Execute Data Collection
 
-2. **Fetch PitchBook pages**: Use `COMPOSIO_SEARCH_FETCH_URL_CONTENT` or `EXA_GET_CONTENTS_ACTION` on any PitchBook URLs found. Note: some PitchBook pages are behind a paywall — if the content returns thin, note the gap and suggest the analyst check PitchBook directly.
+Run as many sources **in parallel** as possible using `COMPOSIO_MULTI_EXECUTE_TOOL`. A typical full-diligence run hits 8-15 tools in 2-3 parallel batches.
 
-3. **PitchBook comparables**: Search for `"[sector/vertical] comparable transactions pitchbook.com"` to find relevant deal comps for valuation benchmarking.
-
-4. **PitchBook Premium connector**: Triptyq has PitchBook Premium connected at the organization level. Always check `RUBE_SEARCH_TOOLS` for PitchBook tools first — use the direct integration over web scraping whenever available. Search with `use_case: "search PitchBook for company data"` to discover available PitchBook-specific tools. The direct connector provides richer data (full funding history, investor networks, comparables, board/management profiles).
-
-## Step 3: Execute Data Collection
-
-Run as many sources **in parallel** as possible using `COMPOSIO_MULTI_EXECUTE_TOOL`. Group independent calls together. A typical full-diligence run hits 8-15 tools in 2-3 parallel batches.
-
-### Batch 1 — Broad Discovery (all independent, run in parallel)
+### Batch 1 — Broad Discovery (independent, run in parallel)
+- Internal Pass A1 / B / D simultaneously (different MCPs, no contention)
 - Company database search/lookup (Crunchbase or equivalent)
-- PitchBook search via web/Exa (company profile, funding rounds, investor network — see PitchBook section above)
-- Web search for "[company name] SEC EDGAR CIK Form D funding valuation" — this is critical for private companies where ticker lookups will fail. Extract the CIK from web results.
-- SEC EDGAR filing search using ticker (if public) — NOTE: for private companies, COMPOSIO_SEARCH_SEC_FILINGS will fail on the company name. You MUST resolve the CIK first via web search, then re-query with the 10-digit CIK in Batch 2.
+- PitchBook search (direct connector if present, else web)
+- Web search for `[company] SEC EDGAR CIK Form D funding valuation` — critical for private companies; extract CIK from results
+- SEC EDGAR filing search using ticker (if public). For private, you MUST resolve CIK first via web before re-querying with the 10-digit CIK in Batch 2.
 - Corporate registry search (OpenCorporates or equivalent)
-- News search for "[company name]"
-- Finance search for "[company name] OR [ticker]" (skip for clearly private companies)
-- Internal search: Google Drive / Notion / Gmail for prior interactions
+- News search for `[company]`
+- Finance search for `[company] OR [ticker]` (skip for clearly private)
 
-### Batch 2 — Targeted Follow-up (depends on Batch 1 results)
+### Batch 2 — Targeted Follow-up (depends on Batch 1)
+- Internal Pass A2 (sender domain pull, once company domain is known)
+- Internal Pass C (Drive, after partner is confirmed)
 - SEC EDGAR company lookup + financials (using CIK from Batch 1)
-- People enrichment for key founders/execs (using names from Batch 1)
+- People enrichment for key founders/execs
 - Officer search in corporate registry (using jurisdiction from Batch 1)
-- Company filings from corporate registry
-- Fetch key URLs found in search results (investor pages, press releases)
+- Fetch key URLs found in search results
 
 ### Batch 3 — Gap Filling
-- Enrich the company's domain for tech stack, employee count, revenue estimates
-- Search for competitor companies identified in earlier batches
-- Any SEC filings for specific forms (10-K, S-1, D) if relevant
+- Domain enrichment for tech stack, employee count, revenue estimates
+- Competitor search using names found in earlier batches
+- Specific SEC forms (10-K, S-1, D) if relevant
 
-**Adapt to what you find.** If Batch 1 reveals the company is private and pre-revenue, skip the SEC financials deep-dive and spend more time on team and market. If it's a public company, go heavy on EDGAR. If you find a Form D filing, extract the fundraising details.
+**Adapt to what you find.** Private + pre-revenue → skip SEC financials, deepen team and market. Public → heavy on EDGAR. Form D found → extract fundraising details.
 
-## Step 4: Synthesize the Report
+## Step 5: Synthesize the Report
 
-Cross-reference all sources. Flag contradictions (e.g., Crunchbase says Series B but the Form D says different amount). Prefer primary sources (SEC filings > news articles > database estimates).
+Cross-reference all sources. Flag contradictions (Crunchbase says Series B but Form D shows different amount). Apply the source-priority order from `_shared/research-passes.md`: SEC > company-sent email > Drive board deck > Granola transcript > prior SharePoint memo > public web.
 
 ### Report Structure
 
-Use this structure, but skip sections that have no data. Every section should have substance — if you only found one data point, say so and note the gap.
+Use this structure, but skip sections with no data. If you found one data point, say so and note the gap.
 
 ```
 # Due Diligence Report: [Company Name]
@@ -111,7 +112,7 @@ Use this structure, but skip sections that have no data. Every section should ha
 **Sources**: [list every source that returned data]
 
 ## Executive Summary
-2-3 paragraphs. What does this company do, why might it be interesting for Triptyq, and what are the key risks? This should be dense enough that a partner who reads nothing else gets the picture.
+2-3 paragraphs. What does this company do, why interesting for Triptyq, key risks. Dense enough that a partner reading nothing else gets the picture.
 
 ## Company Overview
 - Legal name, DBA, jurisdiction of incorporation
@@ -128,77 +129,91 @@ Use this structure, but skip sections that have no data. Every section should ha
 
 ## Financials
 - Revenue (actual or estimated), growth trajectory
-- Key GAAP metrics (if public): Revenue, Net Income, Assets, Cash, Operating Income
-- Burn rate estimates (if available)
-- Unit economics (if available from filings or press)
+- Key GAAP metrics (if public)
+- Burn rate estimates
+- Unit economics
 
 ## Team & Leadership
 - Founders: names, titles, backgrounds, LinkedIn
 - Key executives and board members
 - Officer history from corporate registry
-- Contact information (email, phone — from enrichment)
+- Contact info (email, phone — from enrichment)
 
 ## Market & Competition
 - Industry / sector classification
-- Key competitors identified
-- Market size estimates (from filings, press, or research)
+- Key competitors
+- Market size estimates
 - Competitive positioning
 
 ## Corporate & Legal
 - Corporate filings history
 - Previous names / rebrands
-- Subsidiaries (if any)
-- Any litigation, enforcement, or regulatory flags from EDGAR
+- Subsidiaries
+- Litigation, enforcement, regulatory flags from EDGAR
 
 ## Technology & Product
-- Tech stack (from enrichment data)
+- Tech stack (from enrichment)
 - Product description
 - Key integrations / partnerships
 
-## Prior Interactions
-- Any emails, docs, or notes from Triptyq's internal systems
-- Prior meeting notes or deal flow references
+## Prior Triptyq Interactions
+- Internal Pass A/B/D findings: emails, prior memos, meeting transcripts
+- Relationship edge: who at Triptyq knows whom, intro path
 
 ## Risk Factors
-- Key risks identified across all sources
+- Risks across all sources
 - Data gaps and what they might mean
 - Contradictions between sources
 
 ## Data Sources & Confidence
-Table listing each source queried, whether it returned data, and confidence level.
+Table per source: queried, returned data y/n, confidence level.
 ```
 
-## Step 5: Deliver the Output
+## Step 6: Deliver the Output
 
-Always deliver **both**:
+1. **Inline summary** — Concise version in chat. Lead with Executive Summary, 3-4 most important findings, key risks, recommendation on whether to dig deeper. ~500 words. Link to the full report.
 
-1. **Inline summary** — A concise version in the chat. Lead with the Executive Summary, then the 3-4 most important findings, key risks, and a recommendation on whether to dig deeper. Keep this to ~500 words. Link to the full report.
+2. **.docx report** — Full structured report. Follow the docx skill's instructions (use `docx-js` via npm). Professional but dense — no filler. Tables for funding rounds, financial metrics, officer lists. Cover page: company name, date, "Prepared for Triptyq Capital".
 
-2. **.docx report** — The full structured report as a Word document. Follow the docx skill's instructions for generating the file (use `docx-js` via npm). The report should be professional but dense — no filler, no fluff. Use tables for funding rounds, financial metrics, and officer lists. Include a cover page with company name, date, and "Prepared for Triptyq Capital".
+## Upload to SharePoint
 
-Save the .docx to the workspace folder and provide a download link.
+Uses the Sanctum bridge — see `_shared/sanctum-bridge.md`.
+
+```bash
+# --- skill-customized ---
+COMPANY="Calder AI"
+DEAL_NUMBER="110"
+FILE_PATH="${OUTPUT_FILE}"
+
+DEST_FOLDER="03_Occasions Invest/02_Deal Flow/${DEAL_NUMBER}_${COMPANY}/From Triptyq"
+DOC_TYPE="dd-summary"
+IF_EXISTS="version"
+# --- end skill-customized ---
+```
+
+Boilerplate (HMAC + curl) from `_shared/sanctum-bridge.md`. Surface the `web_url` after upload.
 
 ## Handling Partial Requests
 
-Not every request needs full diligence. Calibrate depth to the ask:
+Calibrate depth to the ask:
 
-- **"Look up [company]"** — Run Batches 1-2, deliver inline summary + report
-- **"Check the founders of [company]"** — Focus on people sources, skip financials
-- **"Any SEC filings for [company]?"** — EDGAR only, inline answer is fine
-- **"Full DD on [company]"** — Everything, all batches, full report
+- **"Look up [company]"** — Internal pass + Batches 1-2 of external. Inline summary + report.
+- **"Check the founders of [company]"** — Focus on people sources, skip financials.
+- **"Any SEC filings for [company]?"** — EDGAR only, inline answer fine.
+- **"Full DD on [company]"** — Everything, all batches, full report.
 
 ## Error Handling
 
-- If a recipe or tool returns an error (auth issue, rate limit, 404), note it in the Data Sources table and move on. Never let one failed source block the report.
-- If a tool requires an API key that isn't connected, mention it to the user and suggest they connect it via Rube for richer data next time.
-- If zero sources return useful data, say so clearly — don't hallucinate company details.
-- **Private company CIK resolution**: COMPOSIO_SEARCH_SEC_FILINGS requires a ticker or CIK. Private companies don't have tickers, and passing the company name will fail. Always resolve the CIK via web search first (search for "[company] SEC EDGAR CIK" — sites like formds.com, secdatabase.com, and sec.gov will surface the CIK). Then re-query with the zero-padded 10-digit CIK (e.g., "0001691342").
-- **Form D enrichment**: For private companies, Form D filings are the richest SEC source. Fetch the formds.com issuer page for a clean summary table of all filings including amounts raised, filing types (New vs Amended), exemption types, and director/executive names.
+- Failed source (auth, rate limit, 404) → note in Data Sources table, move on. Never let one source block the report.
+- Tool needs an API key not connected → mention to user, suggest they connect it for richer next time.
+- Zero useful data → say so clearly, don't hallucinate.
+- **Private company CIK resolution**: SEC search needs a ticker or CIK. Privates have no ticker. Resolve CIK via web first (`[company] SEC EDGAR CIK` — formds.com, secdatabase.com, sec.gov surface CIKs). Re-query with zero-padded 10-digit CIK (e.g., `0001691342`).
+- **Form D enrichment**: For privates, Form D is the richest SEC source. Fetch the formds.com issuer page for clean tables of all filings, exemption types, director/exec names.
 
 ## Important Principles
 
-- **Primary sources over secondary.** SEC filings > news articles > database estimates. Always note the source.
-- **Flag uncertainty.** If revenue is an estimate, say "estimated". If a funding round date conflicts between sources, show both.
-- **North America focus.** Triptyq invests in North America. If a company is HQ'd elsewhere, note this prominently.
-- **Dense, not decorative.** Partners and analysts reading this report are sophisticated. No filler paragraphs, no "in today's dynamic market" nonsense. Data, analysis, gaps, risks.
-- **Extensible by design.** This skill works with whatever tools are available today and discovers new ones automatically. If you notice a new data source in the COMPOSIO_SEARCH_TOOLS results that wasn't there before, use it.
+- **Primary sources over secondary.** Order: SEC > company-sent email > Drive board deck > Granola > prior memo > public web.
+- **Flag uncertainty.** "Estimated" if estimated. Show both numbers if sources disagree.
+- **North America focus.** Triptyq invests in NA. Flag prominently if HQ'd elsewhere.
+- **Dense, not decorative.** No "in today's dynamic market" filler. Data, analysis, gaps, risks.
+- **Extensible by design.** Picks up new Composio recipes automatically. If a new external source appears in `COMPOSIO_SEARCH_TOOLS` results, use it.

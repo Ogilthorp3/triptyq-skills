@@ -19,15 +19,41 @@ If any of the first three is missing, the bridge call will 401. Skills should ch
 
 ## Destination allowlist
 
-The SharePoint module rejects writes outside the structural folders defined in `triptyq-skills/sharepoint-structure.yaml`. Currently allowed roots:
+The SharePoint module rejects writes outside the canonical roots defined in `triptyq-skills/sharepoint-structure.yaml`. The Triptyq tenant uses Charles's existing structure — skills must use these exact paths (case and accents matter):
 
-- `Deals/<company>/...`            — pre-investment work
-- `Portcos/<company>/...`          — portfolio company work
-- `Fund Admin/...`                 — fund operations
-- `LP/...`                         — LP communications and reporting
-- `Internal/...`                   — Triptyq team docs
+- `01_Gestion Triptyq/...`                              — fund ops, legal, HR, branding
+- `02b_Fund II (2025)/...`                              — Fund II fundraising materials
+- `03_Occasions Invest/01_Portco/...`                   — active portfolio companies
+- `03_Occasions Invest/02_Deal Flow/...`                — pipeline / pre-investment deals
+- `03_Occasions Invest/03_Partners Meeting/...`         — weekly partners meeting artifacts
+- `03_Occasions Invest/Other/...`                       — PitchBook, market & fund research
 
-Anything else returns `403 destination_not_allowed`. If a skill needs a new root, add it to the allowlist file in `triptyq-skills` — don't try to bypass it.
+Anything else returns `403 destination_not_allowed`. If a skill needs a new root, add it to `sharepoint-structure.yaml` and bump its `version`. Don't try to bypass it.
+
+## Destination patterns by doc_type
+
+Skills resolve their concrete `folder_path` from these templates before calling the bridge. The bridge does NOT resolve templates — it just enforces that the resolved path falls under an allowed root.
+
+| doc_type            | folder_path template                                                          |
+|---------------------|-------------------------------------------------------------------------------|
+| `investment-memo`   | `03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq`            |
+| `tearsheet`         | `03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq`            |
+| `dd-summary`        | `03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq`            |
+| `screening-note`    | `03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq`            |
+| `company-doc`       | `03_Occasions Invest/02_Deal Flow/{numbered_company}/From Co`                 |
+| `partners-meeting`  | `03_Occasions Invest/03_Partners Meeting/{year}/{month_fr}/{date_iso}`        |
+| `portco-status`     | `03_Occasions Invest/01_Portco/{numbered_company}`                            |
+| `lp-update`         | `02b_Fund II (2025)/02_FINANCIAL/02_DECK` _(confirm with Charles)_            |
+| `market-research`   | `03_Occasions Invest/Other/Pitchbook/Market`                                  |
+| `fund-research`     | `03_Occasions Invest/Other/Pitchbook/Funds`                                   |
+| `legal-doc`         | `01_Gestion Triptyq/...` _(skill picks subfolder per the filing skill)_       |
+
+**Token resolvers** (skill responsibility):
+
+- `{numbered_company}` — `[###]_[Company Name]`. Skill must search Deal Flow / Portco for an existing folder by company name; if none, claim the next available sequential number. Common name only — never legal entity.
+- `{year}` — 4-digit year (e.g. `2026`)
+- `{month_fr}` — French month: `Jan`, `Fév`, `Mars`, `Avril`, `Mai`, `Juin`, `Juillet`, `Août`, `Sept`, `Oct`, `Nov`, `Déc`
+- `{date_iso}` — `YYYY-MM-DD`
 
 ## Upload action — bash invocation
 
@@ -35,8 +61,10 @@ This is the canonical snippet. Skills paste it under an "## Upload to SharePoint
 
 ```bash
 # --- skill-customized ---
-DEST_FOLDER="Deals/${COMPANY}/Memos"   # or Portcos/${COMPANY}/Board, etc.
-DOC_TYPE="investment-memo"             # see doc_type vocabulary below
+# Skill resolves concrete path from the template in "Destination patterns
+# by doc_type" before calling. Example for a tearsheet on Calder AI (deal #110):
+DEST_FOLDER="03_Occasions Invest/02_Deal Flow/110_Calder AI/From Triptyq"
+DOC_TYPE="tearsheet"                   # see doc_type vocabulary below
 IF_EXISTS="version"                    # version | overwrite | rename | fail
 FILE_PATH="${OUTPUT_FILE}"
 # --- end skill-customized ---
@@ -94,7 +122,7 @@ When Claude is running in claude.ai chat (not the sandbox), call the MCP tool di
 
 ```
 sharepoint.upload(
-  folder_path="Deals/Calder/Memos",
+  folder_path="03_Occasions Invest/02_Deal Flow/110_Calder AI/From Triptyq",
   filename="investment-memo-v3.docx",
   content_b64=...,
   metadata={"doc_type": "investment-memo"},
@@ -148,171 +176,5 @@ Adding a new value? Add it here and to `triptyq-skills/sharepoint-structure.yaml
 This file is regenerated nightly by `triptyq-skills/scripts/sync-bridge-manifest.py` from `bridge.nepveu.name/_manifest`. Do not hand-edit the auto-generated sections (marked `<!-- AUTO -->` ... `<!-- /AUTO -->`). The narrative sections above (intro, allowlist, doc_type vocab, error reference) are hand-maintained.
 
 <!-- AUTO -->
-<!-- regenerated by scripts/sync-bridge-manifest.py — manifest sha256=ff70b8314416560a -->
-
-## Available bridge modules
-
-### `sharepoint` (v0.1.0)
-
-#### `sharepoint.get_folder`
-
-Look up a SharePoint folder by tenant-relative path.
-
-- HTTP: `POST /sharepoint/folder`
-- MCP tool: `sharepoint.get_folder`
-
-**Request body**
-
-```json
-{
-  "properties": {
-    "path": {
-      "title": "Path",
-      "type": "string"
-    }
-  },
-  "required": [
-    "path"
-  ],
-  "title": "FolderRequest",
-  "type": "object"
-}
-```
-
-**Response**
-
-```json
-{
-  "properties": {
-    "drive_item_id": {
-      "title": "Drive Item Id",
-      "type": "string"
-    },
-    "web_url": {
-      "title": "Web Url",
-      "type": "string"
-    },
-    "child_count": {
-      "title": "Child Count",
-      "type": "integer"
-    },
-    "last_modified": {
-      "title": "Last Modified",
-      "type": "string"
-    }
-  },
-  "required": [
-    "drive_item_id",
-    "web_url",
-    "child_count",
-    "last_modified"
-  ],
-  "title": "FolderInfo",
-  "type": "object"
-}
-```
-
-#### `sharepoint.upload`
-
-Upload a file to SharePoint, creating folders if missing.
-
-- HTTP: `POST /sharepoint/upload`
-- MCP tool: `sharepoint.upload`
-
-**Request body**
-
-```json
-{
-  "properties": {
-    "folder_path": {
-      "description": "Tenant-relative SharePoint path. Must be under an allowlisted root.",
-      "examples": [
-        "Deals/Calder/Memos"
-      ],
-      "title": "Folder Path",
-      "type": "string"
-    },
-    "filename": {
-      "title": "Filename",
-      "type": "string"
-    },
-    "content_b64": {
-      "description": "Base64-encoded file body.",
-      "title": "Content B64",
-      "type": "string"
-    },
-    "metadata": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Metadata",
-      "type": "object"
-    },
-    "create_folder_if_missing": {
-      "default": true,
-      "title": "Create Folder If Missing",
-      "type": "boolean"
-    },
-    "if_exists": {
-      "default": "version",
-      "enum": [
-        "version",
-        "overwrite",
-        "rename",
-        "fail"
-      ],
-      "title": "If Exists",
-      "type": "string"
-    }
-  },
-  "required": [
-    "folder_path",
-    "filename",
-    "content_b64"
-  ],
-  "title": "UploadRequest",
-  "type": "object"
-}
-```
-
-**Response**
-
-```json
-{
-  "properties": {
-    "drive_item_id": {
-      "title": "Drive Item Id",
-      "type": "string"
-    },
-    "web_url": {
-      "title": "Web Url",
-      "type": "string"
-    },
-    "version": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Version"
-    },
-    "etag": {
-      "title": "Etag",
-      "type": "string"
-    }
-  },
-  "required": [
-    "drive_item_id",
-    "web_url",
-    "etag"
-  ],
-  "title": "UploadResponse",
-  "type": "object"
-}
-```
-
+<!-- Populated by sync-bridge-manifest.py: full action list, request/response schemas -->
 <!-- /AUTO -->

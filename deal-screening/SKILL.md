@@ -54,22 +54,54 @@ Key question: [the single most important thing to validate in a first meeting]
 Red flag: [if any — jurisdiction, conflict, valuation, missing info]
 ```
 
-## Research (Keep it Fast)
+## Research (15-Minute Mode)
 
-This is a 15-minute exercise, not a deep dive:
-1. **Web search**: company name + founders (2-3 searches max)
-2. **Affinity/email**: have we seen this company before?
-3. **SharePoint**: check if a deal folder already exists
-4. **Crunchbase/PitchBook**: funding history if available
+Run the **fast subset** of `_shared/research-passes.md`. This is the 15-minute filter, not the 2-hour deep dive.
 
-Do NOT read legal docs, pull SEC filings, or analyze cap tables at this stage. That's for the vc-due-diligence skill after the screening passes.
+| Pass | Screening seeds |
+|------|-----------------|
+| **Outlook (A)** | A1 only — broad sweep on company name, 6-month horizon. Skip the sender-domain pull unless A1 surfaces a direct email from the company. Have we seen this deal before? Is there an intro path? |
+| **SharePoint (B)** | Quick check whether a `[###]_<Company>` folder already exists. If yes, the deal isn't new — note that and route to whoever opened it. |
+| **Drive (C)** | Skip — at screening stage, there's no signed MNDA yet, no board materials. |
+| **Granola (D)** | Skip — no meetings yet. |
+| **External (E)** | Web search: 2-3 queries (company + founders + funding history). Crunchbase / PitchBook quick check via the same tools `vc-due-diligence` uses, but pull only top-line: amount raised, latest valuation, lead investor. |
+
+Do NOT read legal docs, pull SEC filings, or analyze cap tables at this stage. That's for the `vc-due-diligence` skill after the screening passes.
 
 ## After Screening
 
-- If TAKE THE MEETING: create the deal folder on SharePoint (`[###]_[Company]/From Co/ + From Triptyq/`), save screening doc to `From Triptyq/`
-- If WATCH: note in the partners meeting agenda, revisit in 2-4 weeks
-- If PASS: record reason in Affinity, no folder needed
+Three paths depending on the verdict:
+
+**TAKE THE MEETING** — Open a deal folder on SharePoint and file the screening doc. Use the Sanctum bridge:
+
+```bash
+# --- skill-customized ---
+COMPANY="Calder AI"
+DEAL_NUMBER="111"                        # claim next available number; ask user to confirm
+FILE_PATH="${OUTPUT_FILE}"               # the 1-page screening .docx or .pdf
+
+DEST_FOLDER="03_Occasions Invest/02_Deal Flow/${DEAL_NUMBER}_${COMPANY}/From Triptyq"
+DOC_TYPE="screening-note"
+IF_EXISTS="version"
+# --- end skill-customized ---
+```
+
+Boilerplate (HMAC + curl) from `_shared/sanctum-bridge.md`. The bridge auto-creates the deal folder and `From Triptyq/` subfolder via `create_folder_if_missing: true`. Note: `From Co/` will need to be created separately when company-supplied materials arrive — either run a second bridge upload to that path with the first incoming file, or call `sharepoint.folder` once that action ships in the bridge.
+
+**WATCH** — Note the company in the next partners meeting agenda. Don't open a folder. Revisit in 2-4 weeks via `partners-meeting-prep`.
+
+**PASS** — Record the reason in Affinity. No SharePoint folder. The screening doc is not filed; it lives in the conversation as a record.
 
 ## Partners Meeting Integration
 
-The screening output is designed to be read aloud in 60 seconds at the weekly meeting. Charles or whoever is presenting can scan it and hit the key points without reading a full memo.
+The screening output is designed to be read aloud in 60 seconds at the weekly meeting. Charles or whoever is presenting can scan it and hit the key points without reading a full memo. The `partners-meeting-prep` skill pulls all this week's screening verdicts into agenda item 2 automatically.
+
+## Deal Number Claiming
+
+Sequential `[###]` numbers are shared firm-wide and conflict-prone. Don't auto-claim. Pattern:
+
+1. From Pass B, find the highest existing number in `02_Deal Flow/`.
+2. Propose the next one to the user: _"This screen is for Calder AI. Highest existing deal-flow folder is 110. I'll claim 111 — confirm before I create the folder."_
+3. Only after explicit confirmation, run the bridge upload.
+
+This avoids two partners screening different deals and both grabbing the same number.

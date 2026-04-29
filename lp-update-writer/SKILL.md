@@ -13,13 +13,22 @@ LP updates are trust-building documents. They should be honest, concise, and dem
 ## Before Writing
 
 ### Gather Data
-1. **SharePoint**: Check `02b_Fund II (2025)/02_FINANCIAL/` for latest fund financials, NAV, and portfolio metrics
-2. **Portfolio companies**: Check `03_Occasions Invest/01_Portco/` for each company's latest updates
-3. **Email/Granola**: Search for recent board meetings, milestone updates, and founder communications
-4. **Affinity CRM**: Pull deal flow metrics (companies reviewed, meetings taken, investments made)
-5. **Calendar**: Check for upcoming events, conferences, or LP meetings
+
+Run the relevant passes from `_shared/research-passes.md`. LP updates rely heavily on internal sources — public sources are rarely useful here.
+
+| Pass | LP-update seeds |
+|------|-----------------|
+| **Outlook (A)** | Last 90 days. Search for `board update`, `monthly update`, `investor update` from each portco's domain. This is the raw material for the Portfolio Highlights section — pull the latest from each company. |
+| **SharePoint (B)** | `02b_Fund II (2025)/02_FINANCIAL/` for fund financials, NAV, capital called/deployed. `03_Occasions Invest/01_Portco/[##]_[Company]/` for each portco's latest financial reports. |
+| **Drive (C)** | Run for any portco where the GP receiving the latest board deck is the writer. Confirm partner before fetch. |
+| **Granola (D)** | Recent board meeting transcripts for material milestones or risks. |
+
+Plus LP-specific sources not in the standard helper:
+- **Affinity CRM**: Pull deal flow metrics (companies reviewed, meetings taken, term sheets, investments made).
+- **Calendar**: Check upcoming events, conferences, LP meetings to mention in the Outlook section of the letter.
 
 ### Determine the Update Type
+
 | Type | Cadence | Length | Audience |
 |------|---------|--------|----------|
 | Quarterly letter | Q1/Q2/Q3/Q4 | 2-3 pages | All LPs |
@@ -68,15 +77,30 @@ For each active portco, 2-3 sentences covering:
 
 ## Design
 
-Follow the investment-memo skill's brand tokens: RED (C8102E), Georgia body, Arial headers, justified text. Include the Triptyq logo on page 1. Use the docx skill for generation.
+Follow the `triptyq-investment-memo` brand tokens: RED (`C8102E`), Georgia body, Arial headers, justified text. Triptyq logo on page 1. Use the `docx` skill for generation.
 
 ## Tone
 
 - First person plural ("we")
 - Bilingual consideration: Triptyq LPs include French-speaking Quebecois investors. Offer to write in French if requested.
-- Honest about challenges — "Company X is behind plan on revenue but ahead on product" is better than silence
-- Specific over vague — "Revenue grew 40% QoQ to $180K MRR" beats "strong momentum continues"
+- Honest about challenges — "Company X is behind plan on revenue but ahead on product" beats silence.
+- Specific over vague — "Revenue grew 40% QoQ to $180K MRR" beats "strong momentum continues".
 
-## Filing
+## Upload to SharePoint
 
-Save to `02b_Fund II (2025)/02_FINANCIAL/` or the appropriate fund folder on SharePoint using the sharepoint-filing skill.
+LP update folder convention is being confirmed with Charles — current default is `02b_Fund II (2025)/02_FINANCIAL/02_DECK/`, but for LP-only correspondence Charles may want a dedicated `LP/` subfolder. Ask before bulk uploads.
+
+Uses the Sanctum bridge — see `_shared/sanctum-bridge.md`.
+
+```bash
+# --- skill-customized ---
+QUARTER="2026-Q1"                                # or "2025-annual", "fundii-fundraise", etc.
+FILE_PATH="${OUTPUT_FILE}"
+
+DEST_FOLDER="02b_Fund II (2025)/02_FINANCIAL/02_DECK"   # CONFIRM with Charles
+DOC_TYPE="lp-update"
+IF_EXISTS="version"
+# --- end skill-customized ---
+```
+
+Boilerplate (HMAC + curl) from `_shared/sanctum-bridge.md`. After upload, surface the `web_url`. For LP letters, also offer to draft the email body that delivers the link to the LP list — but do not send automatically.

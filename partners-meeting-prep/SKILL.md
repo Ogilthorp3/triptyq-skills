@@ -13,11 +13,19 @@ The Dealflow & Portcos Weekly is the core operating rhythm of Triptyq Capital. H
 ## Before the Meeting
 
 ### Data Sources to Pull
-1. **Affinity CRM**: Deals updated in the last 7 days, new companies added, status changes
-2. **Email (Outlook)**: Search for founder emails, term sheets, investor updates received this week
-3. **Granola**: Pull notes from last week's meeting for follow-up tracking
-4. **SharePoint**: Check `03_Partners Meeting/[Year]/[Month FR]/` for last week's compte-rendu and tracker
-5. **Calendar**: Upcoming meetings with founders, LPs, conferences
+
+Run the short, time-windowed version of `_shared/research-passes.md`. The horizon for this skill is **last 7 days** — this is a weekly tempo skill, not a deep dive.
+
+| Pass | Meeting-prep seeds |
+|------|--------------------|
+| **Outlook (A)** | 7-day horizon. Pull anything new across the pipeline: founder emails, intros, term sheets, investor updates. No company filter — this is the firehose for the week. |
+| **SharePoint (B)** | `03_Occasions Invest/03_Partners Meeting (weekly)/[Year]/[Month FR]/` for the previous week's compte-rendu and tracker. Action items from last week feed agenda item 6. |
+| **Drive (C)** | Skip unless a specific portco has new board materials worth surfacing. |
+| **Granola (D)** | Pull last week's partners meeting transcript for follow-up tracking and to confirm what was decided. |
+
+Plus partners-meeting-specific sources not in the standard helper:
+- **Affinity CRM**: Deals updated in the last 7 days, new companies added, status changes.
+- **Calendar**: Upcoming meetings with founders, LPs, conferences this week.
 
 ### Generate Agenda
 
@@ -62,14 +70,38 @@ Generate meeting minutes in French (the team operates bilingually but internal n
 - `Compte-rendu_reunion_[date].docx` or `Compte-rendu_partners_meeting.docx`
 - Pipeline tracker: `Triptyq_Partners_Meeting_[Date].xlsx`
 
-### Save Location
-`03_Occasions Invest/03_Partners Meeting (weekly)/[Year]/[Month FR]/[YYYY-MM-DD]/`
+## Upload to SharePoint
 
-Month names in French: Janvier, Février, Mars, Avril, Mai, Juin, Juillet, Août, Septembre, Octobre, Novembre, Décembre.
+Uses the Sanctum bridge — see `_shared/sanctum-bridge.md`.
+
+```bash
+# --- skill-customized ---
+MEETING_DATE="2026-04-27"                # ISO format
+YEAR="${MEETING_DATE:0:4}"
+# Map month number to French short name
+case "${MEETING_DATE:5:2}" in
+  01) MONTH_FR="Jan";;   02) MONTH_FR="Fév";;
+  03) MONTH_FR="Mars";;  04) MONTH_FR="Avril";;
+  05) MONTH_FR="Mai";;   06) MONTH_FR="Juin";;
+  07) MONTH_FR="Juillet";; 08) MONTH_FR="Août";;
+  09) MONTH_FR="Sept";;  10) MONTH_FR="Oct";;
+  11) MONTH_FR="Nov";;   12) MONTH_FR="Déc";;
+esac
+
+FILE_PATH="${OUTPUT_FILE}"
+DEST_FOLDER="03_Occasions Invest/03_Partners Meeting (weekly)/${YEAR}/${MONTH_FR}/${MEETING_DATE}"
+DOC_TYPE="partners-meeting"
+IF_EXISTS="version"
+# --- end skill-customized ---
+```
+
+Boilerplate (HMAC + curl) from `_shared/sanctum-bridge.md`. The bridge will auto-create the year/month/date subfolders if they don't exist (`create_folder_if_missing: true` is the default in the helper). Surface `web_url` after upload.
+
+For the pipeline xlsx, run the same upload with the same `DEST_FOLDER` and `DOC_TYPE="partners-meeting"`.
 
 ## Integration with Other Skills
 
-- New deals → run **deal-screening** for each
-- Deal progressing to diligence → trigger **vc-due-diligence**
-- Deal ready for IC → trigger **investment-memo**
-- All outputs → file via **sharepoint-filing**
+- New deals → run `deal-screening` for each
+- Deal progressing to diligence → trigger `vc-due-diligence`
+- Deal ready for IC → trigger `triptyq-investment-memo`
+- All outputs upload via the Sanctum bridge with the right `doc_type`

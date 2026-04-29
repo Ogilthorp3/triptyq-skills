@@ -1,27 +1,182 @@
-# Source-of-truth for the Sanctum Bridge SharePoint allowlist.
+# Triptyq Capital SharePoint structure
+# ---------------------------------------------------------------------------
+# Single source of truth for:
+#   1. Which SharePoint paths the Sanctum bridge will accept writes to.
+#   2. Where each Triptyq skill should send each kind of artifact.
 #
-# The bridge fetches this file at startup and refreshes hourly; anything not
-# headed by one of these top-level segments is rejected with
-# `403 destination_not_allowed`. The list is permissive on purpose — it's the
-# anti-prompt-injection guard, not a fine-grained ACL. Folder-level access
-# policy lives in SharePoint itself.
+# Consumed by:
+#   - bridge.nepveu.name — fetched at startup, refreshed hourly
+#     (env: ALLOWLIST_PATH=/path/to/this OR ALLOWLIST_URL=https://...)
+#   - triptyq-skills/_shared/sanctum-bridge.md — auto-rendered into the
+#     destination table by sync-bridge-manifest.py
 #
-# Edits land at `~/Projects/triptyq-skills/sharepoint-structure.yaml`; the
-# bridge reads via the symlink at `/opt/sanctum/bridge/sharepoint-structure.yaml`.
-allowed_roots:
-  # --- Existing document roots on the Triptyq Capital Fund I site ---
-  - Deal Flow            # deal pipeline
-  - PortCo               # portfolio companies
-  - LP Relationships     # LP communications + reporting
-  - Marcomm              # marketing & comms
-  - Daily Market Research
-  - General              # catch-all / team docs
+# Move this file into the triptyq-skills repo at:
+#   triptyq-skills/sharepoint-structure.yaml
+# ---------------------------------------------------------------------------
 
-  # --- Spec-aligned aliases used by skills that prefer flat names ---
-  # The bridge will create these on first write; they coexist with the
-  # display-named folders above.
-  - Deals
-  - Portcos
-  - Fund Admin
-  - LP
-  - Internal
+version: 1
+last_updated: 2026-04-28
+maintainer: bert@triptyq.vc
+
+# ---------------------------------------------------------------------------
+# Site
+# ---------------------------------------------------------------------------
+# Site was renamed TriptyqCapital → TriptyqCapitalFundI by Charles to
+# disambiguate from Fund II once Fund II fundraising started. Underlying
+# site_id and drive_id persist through SharePoint renames, so the existing
+# drive_id from the (now-stale) sharepoint-filing skill should still resolve.
+# When the sharepoint-filing skill is next touched, update its site URL.
+site:
+  hostname: triptyq.sharepoint.com
+  site_path: /sites/TriptyqCapitalFundI
+  site_id: 735dfaaf-XXXX                  # Bert: paste full GUID from CF Access app config
+  drive_name: "Documents Triptyq"
+  drive_id: b!wPs8sWIq70Kt7RsL80wFKBqB2HWWzZdAnhoakfwfYIWRgc_-ZgmSTLpthkkQlSJu
+                                          # Reused from sharepoint-filing skill — verify
+                                          # against what Yoda pasted into the bridge config.
+                                          # Renames preserve GUIDs, so this should still work.
+
+# ---------------------------------------------------------------------------
+# Allowed write roots
+# ---------------------------------------------------------------------------
+# Bridge accepts a folder_path iff it begins (after normalization) with one
+# of these strings. Anything else returns 403 destination_not_allowed.
+#
+# Paths are tenant-relative within the drive — no leading slash, no trailing
+# slash, exact case match.
+#
+# Key name MUST be `allowed_roots` — the bridge's allowlist parser
+# (bridges/sharepoint/allowlist.py) accepts `allowed_roots` or `roots`.
+allowed_roots:
+  # Fund operations, legal, HR, branding
+  - "01_Gestion Triptyq"
+
+  # Fund II fundraising materials
+  - "02b_Fund II (2025)"
+
+  # Active portfolio companies — post-investment
+  - "03_Occasions Invest/01_Portco"
+
+  # Pipeline / pre-investment deals
+  - "03_Occasions Invest/02_Deal Flow"
+
+  # Weekly partners meeting artifacts
+  - "03_Occasions Invest/03_Partners Meeting"
+
+  # PitchBook, market research, fund research
+  - "03_Occasions Invest/Other"
+
+# Strict mode rejects anything else. Set to false only for emergency unblock.
+strict_mode: true
+
+# ---------------------------------------------------------------------------
+# Skill destinations
+# ---------------------------------------------------------------------------
+# Each Triptyq skill picks a destination from this table. The bridge does NOT
+# resolve these patterns — the skill builds the concrete folder_path before
+# calling /sharepoint/upload. The patterns here document the convention.
+#
+# Tokens:
+#   {company}         — common name, e.g. "Calder AI" (NOT legal entity)
+#   {numbered_company}— "[###]_{company}" — sequential deal-flow number,
+#                       skill must look up existing or claim next available
+#   {year}            — 4-digit year
+#   {month_fr}        — French month name: Jan, Fév, Mars, Avril, Mai, Juin,
+#                       Juillet, Août, Sept, Oct, Nov, Déc
+#   {date_iso}        — YYYY-MM-DD
+destinations:
+  investment-memo:
+    pattern: "03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq"
+    if_exists: version
+    skills: [triptyq-investment-memo]
+
+  tearsheet:
+    pattern: "03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq"
+    if_exists: version
+    skills: [tearsheet-generator]
+
+  dd-summary:
+    pattern: "03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq"
+    if_exists: version
+    skills: [vc-due-diligence]
+
+  screening-note:
+    pattern: "03_Occasions Invest/02_Deal Flow/{numbered_company}/From Triptyq"
+    if_exists: version
+    skills: [deal-screening]
+
+  company-doc:
+    # Anything FROM the company — pitch decks, cap tables, data room exports.
+    # Never write our own work here.
+    pattern: "03_Occasions Invest/02_Deal Flow/{numbered_company}/From Co"
+    if_exists: rename
+    skills: []     # human-driven uploads, but bridge accepts them
+
+  partners-meeting:
+    pattern: "03_Occasions Invest/03_Partners Meeting/{year}/{month_fr}/{date_iso}"
+    if_exists: version
+    skills: [partners-meeting-prep]
+
+  portco-status:
+    pattern: "03_Occasions Invest/01_Portco/{numbered_company}"
+    if_exists: version
+    skills: [portfolio-monitoring]
+
+  lp-update:
+    pattern: "02b_Fund II (2025)/02_FINANCIAL/02_DECK"   # CONFIRM canonical LP folder
+    if_exists: version
+    skills: [lp-update-writer]
+
+  market-research:
+    pattern: "03_Occasions Invest/Other/Pitchbook/Market"
+    if_exists: rename
+    skills: []
+
+  fund-research:
+    pattern: "03_Occasions Invest/Other/Pitchbook/Funds"
+    if_exists: rename
+    skills: []
+
+  legal-doc:
+    pattern: "01_Gestion Triptyq"   # subfolder picked by skill
+    if_exists: rename
+    skills: [legal-review-contract, legal-triage-nda]
+
+# ---------------------------------------------------------------------------
+# doc_type vocabulary
+# ---------------------------------------------------------------------------
+# Pinned on every upload as `metadata.doc_type`. Drives SharePoint search
+# and any future view filters. Adding a value? Bump version above.
+doc_types:
+  - investment-memo
+  - tearsheet
+  - dd-summary
+  - screening-note
+  - company-doc
+  - partners-meeting
+  - portco-status
+  - lp-update
+  - market-research
+  - fund-research
+  - legal-doc
+  - meeting-notes
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+defaults:
+  if_exists: version
+  create_folder_if_missing: true
+  conflict_resolution: native_versioning   # SharePoint version history, not -v3.docx siblings
+
+# ---------------------------------------------------------------------------
+# Migration notes
+# ---------------------------------------------------------------------------
+# - The bridge's first-run default allowlist used spec names (Deals/, Portcos/
+#   etc.) that don't exist in this tenant. Smoke test on 2026-04-27 created
+#   a stray top-level Deals/Sanctum-Test/Smoke/ folder. Once this YAML is
+#   loaded by the bridge, that path will return 403 — the orphan folder can
+#   be deleted from the SharePoint UI.
+# - sanctum-docs/skill-helpers/sanctum-bridge.md still has stale example
+#   paths (Deals/${COMPANY}/Memos). Update the helper to use the canonical
+#   patterns from `destinations` above.

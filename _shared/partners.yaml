@@ -1,0 +1,43 @@
+# Triptyq Capital — partner directory
+# ---------------------------------------------------------------------------
+# Maps each partner to the Google account where their portcos share board
+# materials. Used by skills that fetch from Google Drive (tearsheet-generator,
+# triptyq-investment-memo, vc-due-diligence, portfolio-monitoring).
+#
+# When a skill needs Drive content for a portco, it:
+#   1. Identifies the responsible partner (asks user, or looks up in a
+#      future partner_portfolio.yaml mapping if we build one).
+#   2. Reads the partner's `google_account` from this file.
+#   3. Confirms Drive MCP is authenticated as that account before fetching.
+#      Drive MCP currently has no "whoami" tool, so confirmation is by
+#      explicit user prompt rather than programmatic check.
+#
+# Update path: triptyq-skills/_shared/partners.yaml
+# ---------------------------------------------------------------------------
+
+version: 1
+last_updated: 2026-04-28
+
+partners:
+  - id: bert
+    name: Bert
+    triptyq_email: bert@triptyq.vc
+    google_account: bert.triptyq@gmail.com
+
+  - id: charles
+    name: Charles
+    triptyq_email: charles@triptyq.vc       # CONFIRM — guessed from pattern
+    google_account: triptyq.capital@gmail.com
+    notes: |
+      Note the different naming pattern — Charles uses the generic
+      triptyq.capital@gmail.com rather than firstname.triptyq@gmail.com.
+      Don't auto-derive his address from the pattern.
+
+  - id: guillaume
+    name: Guillaume
+    triptyq_email: guillaume@triptyq.vc     # CONFIRM
+    google_account: TBD                      # Bert is asking him
+    notes: |
+      Pending response from Guillaume on his Triptyq Google account.
+      Until populated, skills should ask for it at runtime when they need
+      Drive content for a Guillaume portco, and offer to update this file.

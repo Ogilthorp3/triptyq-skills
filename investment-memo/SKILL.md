@@ -1,5 +1,5 @@
 ---
-name: triptyq-investment-memo
+name: Triptyq — Investment Memo
 description: |
   Write Triptyq Capital investment memos with conviction-driven storytelling, Sid Lee-inspired design, and red brand identity. Use this skill whenever someone asks to write an investment memo, deal memo, IC memo, due diligence summary, or any investment recommendation document. Also triggers on "write up the deal", "memo for the partners", "document this opportunity", "prepare for IC", or when someone has gathered deal materials and needs to turn them into a decision document. This is the canonical way Triptyq writes investment memos — always use it, even for quick deal summaries or one-pagers.
 ---
@@ -18,15 +18,22 @@ The formatting matters as much as the words — the team values beautiful, reada
 
 ### Step 1: Gather Everything
 
-Before writing a single word, exhaust every source available. The best memos are built on information asymmetry. Check all of these:
+Before writing a single word, exhaust every internal source. The best memos are built on information asymmetry — the relationship story, the data room details, the partner meeting history are what make a Triptyq memo different.
 
-- **Email** (Outlook): Search for the company name, founder names, lawyer names. Look for legal docs, term sheets, data room invitations, internal forwards with partner commentary.
-- **SharePoint**: Search for the company — there's likely a deal folder under `03_Occasions Invest/02_Deal Flow/`. Look for existing drafts, partner meeting notes, market research.
-- **Meeting notes** (Granola): Query for the company and founder names. Check the Dealflow & Portcos Weekly meetings for internal discussion.
-- **Affinity**: Check for CRM meeting summaries and notetaker transcripts.
+Run **all five passes** from `_shared/research-passes.md` (Outlook, SharePoint, Drive, Granola, External). For an investment memo specifically:
+
+| Pass | Skill-specific seeds |
+|------|---------------------|
+| **Outlook (A)** | Search company name + founder names + lawyer names. Time horizon: 24 months. Keywords for A3: `term sheet`, `data room`, `cap table`, `409A`, `board update`, `lead investor`, founder name, lawyer name. Pull every legal forward, every internal partner commentary thread. |
+| **SharePoint (B)** | Look in `03_Occasions Invest/02_Deal Flow/[###]_[Company]/` for existing drafts, From Co/ legal docs, From Triptyq/ partner notes, market research. |
+| **Drive (C)** | Confirm partner; pull data room exports, board decks, founder-shared docs. Down-load PDFs through `pdf` skill for inline summarization. |
+| **Granola (D)** | All meetings mentioning the company. Particularly Dealflow & Portcos Weekly transcripts where the deal was discussed — partner pushback and unresolved questions live there. |
+| **External (E)** | PitchBook, Crunchbase, SEC EDGAR (if applicable), founder LinkedIn, news. Run `vc-due-diligence` first if external diligence depth isn't already covered. |
+
+Also useful for memo work specifically and not currently bridged:
 - **iMessage**: If there's a personal relationship with a founder, check text history for informal context, technical discussions, in-person meetings.
-- **Data room** (Brightflag or equivalent): If there's a data room, catalog every document. The IP assignments, advisor agreements, 409A valuations, share certificates, and corporate filings tell a story the deck never will.
-- **Apple Mail attachments**: Use AppleScript to find and save email attachments locally if the Outlook API can't download them directly.
+- **Affinity CRM**: Meeting summaries and notetaker transcripts (still Composio-mediated).
+- **Apple Mail attachments via AppleScript**: Fall-through when the Outlook MCP can't extract a specific attachment.
 
 The research phase isn't optional. The relationship story, the data room details, the partner meeting history — these are what make a Triptyq memo different from a generic VC writeup.
 
@@ -204,85 +211,30 @@ After drafting, read every paragraph and ask: "If I cut this, does the memo lose
 2. Convert to PDF: `soffice --headless --convert-to pdf doc.docx --outdir ./` (LibreOffice on Claude's local machine)
 3. Screenshot key pages and verify formatting
 4. Deliver both .docx and .pdf
-5. Save to SharePoint deal folder — use `ONE_DRIVE_ONEDRIVE_UPLOAD_FILE` via Rube with `conflict_behavior: "replace"`. The SharePoint Composio connector has a tenant config issue; always use the OneDrive connector with the SharePoint `drive_id` instead.
+5. Upload to SharePoint via the Sanctum bridge — see "Upload to SharePoint" below.
 
 ### Editing an Existing Memo in SharePoint
-Use this workflow when adding sections, fixing content, or updating an existing memo file:
+This workflow is for surgical OOXML edits to a memo already in SharePoint — adding sections, fixing data, inserting hyperlinks. Use the `triptyq-sharepoint-docx-editor` skill for the download/unpack/edit/repack flow. The final upload back to SharePoint goes through the Sanctum bridge with `if_exists: "version"` so SharePoint preserves version history.
 
-1. **Download** via `ONE_DRIVE_DOWNLOAD_FILE` in Rube — returns an S3 URL. Use `requests.get(s3url)` in the Rube workbench to save to `/home/user/`.
-2. **Unpack** with `zipfile.ZipFile(...).extractall(...)` — a .docx is a ZIP of XML files.
-3. **Edit `word/document.xml`** directly with Python string operations. Critical rules:
-   - Always escape `&` as `&amp;` in text content (`re.sub(r'&(?!(amp|lt|gt|apos|quot|#\d+|#x[0-9a-fA-F]+);)', '&amp;', xml)`)
-   - Validate after every edit: `xml.etree.ElementTree.fromstring(doc_xml)`
-   - Use exact XML patterns from the original doc — read them first, never guess
-4. **Add hyperlinks**: edit both `word/document.xml` (add `<w:hyperlink r:id="rIdN">` elements) AND `word/_rels/document.xml.rels` (add `<Relationship Id="rIdN" Type=".../hyperlink" Target="URL" TargetMode="External"/>`)
-5. **Rels file warning**: When rebuilding `document.xml.rels`, always preserve the core non-hyperlink relationships (rId1–rId12: styles, header, footer, numbering, footnotes, endnotes, settings, comments, fontTable, customXml). Losing these breaks the document silently.
-6. **Repack** with `zipfile.ZipFile(..., 'w', ZIP_DEFLATED)` — zip all files from the unpacked directory.
-7. **Validate** in Claude's local environment: `python scripts/office/validate.py doc.docx`
-8. **Convert to PDF**: `soffice --headless --convert-to pdf doc.docx --outdir ./`
-9. **Upload back** via `ONE_DRIVE_ONEDRIVE_UPLOAD_FILE` with `conflict_behavior: "replace"`
-10. **Deliver** both .docx and .pdf to user
+## Upload to SharePoint
 
-### SharePoint Infrastructure
-- **Drive ID** (Documents Triptyq library): `b!wPs8sWIq70Kt7RsL80wFKBqB2HWWzZdAnhoakfwfYIWRgc_-ZgmSTLpthkkQlSJu`
-- **Memo folder**: `/03_Occasions Invest/02_Deal Flow/[###]_[Company]/From Triptyq/`
-- Use `conflict_behavior: "replace"` to overwrite existing files
+Uses the Sanctum bridge — see `_shared/sanctum-bridge.md` for the full env contract, error codes, and MCP variant.
+
+```bash
+# --- skill-customized ---
+COMPANY="Calder AI"                      # common name, not legal entity
+DEAL_NUMBER="110"                        # from SharePoint search; ask user if new
+FILE_PATH="${OUTPUT_FILE}"               # the .docx generated by docx-js
+
+DEST_FOLDER="03_Occasions Invest/02_Deal Flow/${DEAL_NUMBER}_${COMPANY}/From Triptyq"
+DOC_TYPE="investment-memo"
+IF_EXISTS="version"
+# --- end skill-customized ---
+```
+
+The boilerplate (HMAC sign + curl) lives in `_shared/sanctum-bridge.md` — copy it under the skill-customized block above. After upload, surface the `web_url` to the user.
 
 ## Reference Files
 
 - `references/memo-template.md` — Quick-reference template with section patterns and example pull quotes
 - `assets/triptyq-logo-color.png` — Official Triptyq Capital logo (color, PNG, 8192x2057)
-
-
-## Addendum: Lessons from Calder Memo v2 (April 2026)
-
-The following guidelines were developed during the Calder Pte. Ltd. investment memo revision process (April 2026) based on feedback from Joe Tou and internal IC review.
-
-### New Standard Sections (Always Include)
-
-1. **Use of Proceeds & Milestones** — Table (Category | Est. Allocation | Purpose) + quarterly milestones with measurable targets + failure trigger. IC members will always ask how the money is spent.
-
-2. **Allocation & Return Sensitivity** — State Triptyq's allocation, post-money ownership %, return sensitivity table (Exit Valuation | Stake Value | Multiple | Scenario), dilution disclaimer, and strategic value beyond pure returns.
-
-3. **Customer Pipeline & Go-to-Market** — Required for pre-revenue companies. Prospect table + phased GTM plan + pricing model. **Must fit on ONE page** (maple syrup test). If no LOIs exist, state explicitly: "Prospects are based on market mapping, not confirmed contracts."
-
-4. **Exit Scenarios** — Table (Scenario | Rationale & Precedent | Timeline | Est. Value) covering Strategic Acquisition, Secondary/Growth Equity, and IPO paths. Name specific acquirers.
-
-### New Optional Section: Advisor/Conflict Deep Dive
-
-Use when an advisor has a dual role (customer + competitor). Structure:
-- Stack analysis table: Layer | Entity A | Entity B (prove they operate at different layers)
-- Vertical integration risk: Arguments unlikely (4+) + Arguments possible (3+)
-- Assessment with leading indicator and **recommended action** before IC vote
-- Created for Fei-Fei Li / World Labs analysis; resolved a partner's primary concern.
-
-### Tone Guidelines
-
-- **Analytical, not sales pitch.** If a sentence could come from a pitch deck, rewrite it.
-- **Don't cheerlead.** Let credentials and data speak.
-- **Don't create urgency.** The memo documents a decision, it doesn't pressure one.
-- **Acknowledge weaknesses directly.** E.g., "requires conviction in the team rather than the financials."
-- **Match verdict to body tone.** If the body is measured, the verdict should feel earned.
-
-### Personal Relationship: One Mention Rule
-
-The Bert/founder relationship is mentioned **once — in the "Our Edge" subsection of The Team only.** Never repeat in SWOT, Recommendation, Conclusion, or elsewhere. Repeating reads as a sales pitch. (This was the #1 feedback from Joe Tou's review.)
-
-### Hyperlinks on Technical Terms
-
-Every technical term in the memo should be a **clickable hyperlink** to a quality reference:
-- World models → NVIDIA Glossary or Scientific American explainer
-- SLAM → Wikipedia
-- LiDAR → Wikipedia
-- Framework/platform names → Official docs (PyTorch, ROS 2, NVIDIA Cosmos)
-- Open-source tools → GitHub repos (Open3D, etc.)
-
-Add a **Tech Stack subsection** under The Company with all components hyperlinked.
-
-### Reference Checks (Recommended)
-
-Best-in-class memos include 2-3 bullet points from backchannel calls on the founders. When the thesis rests on team conviction, this is the highest-ROI pre-IC activity.
-
-### Governance Flags
-
-If lead investor has veto power over subsequent investors (e.g., a16z >$5M threshold), flag this explicitly in Terms & Cap Table AND verbally at the partners meeting. It affects follow-on ability.
